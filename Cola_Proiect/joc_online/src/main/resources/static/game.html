@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Penalty Shoot-Out Game and Chat</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="container" style="display: flex; height: 100vh; background: linear-gradient(to bottom, #87CEEB, #FFFFFF); font-family: Arial, sans-serif;">
+
+    <!-- Joc în partea stângă -->
+    <div style="flex: 2; display: flex; align-items: center; justify-content: center; border-right: 2px solid #00CED1; flex-direction: column; background-color: #FAFAD2;">
+        <h2 style="color: #FF4500; font-size: 2rem; text-shadow: 1px 1px 2px #000;">Penalty Shoot-Out</h2>
+        <canvas id="gameCanvas" width="800" height="500" style="border: 3px solid #000; background: radial-gradient(circle, #87CEEB, #4682B4);"></canvas>
+        <h3 id="scoreBoard" style="color: #008000; margin-top: 10px;">Player 1: 0 | Player 2: 0</h3>
+        <div style="margin-top: 20px;">
+            <button id="playAI" style="padding: 10px 20px; font-size: 1rem; margin-right: 10px; cursor: pointer; background-color: #FF4500; color: white; border: none; border-radius: 5px;">Play vs AI</button>
+            <button id="playMultiplayer" style="padding: 10px 20px; font-size: 1rem; cursor: pointer; background-color: #008000; color: white; border: none; border-radius: 5px;">Play vs Player</button>
+        </div>
+    </div>
+
+    <!-- Chat în partea dreaptă -->
+    <div style="flex: 1; display: flex; flex-direction: column; padding: 10px; background-color: #F0F8FF;">
+        <!-- Bara de sus -->
+        <div style="display: flex; justify-content: space-between; padding: 10px; background-color: #00CED1; border-radius: 5px;">
+            <div>
+                <strong>Logged in as: </strong><span id="username-display" style="color: #FF4500;"></span>
+            </div>
+            <button id="logout-btn" style="padding: 5px 10px; cursor: pointer; background-color: #FF4500; color: white; border: none; border-radius: 5px;">Logout</button>
+        </div>
+
+        <h2 style="color: #000080; margin: 10px 0;">Game Chat</h2>
+        <div id="chat-box" style="flex: 1; border: 2px solid #00CED1; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background-color: #E6E6FA; border-radius: 5px;"></div>
+
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="message-input" placeholder="Type your message..." style="flex: 1; padding: 10px; border: 1px solid #00CED1; border-radius: 5px;">
+            <button id="send-btn" style="padding: 10px 20px; cursor: pointer; background-color: #FF4500; color: white; border: none; border-radius: 5px;">Send</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let ball = { x: 400, y: 450, radius: 12, dx: 0, dy: 0, targetX: 400, targetY: 50, color: '#FF4500' };
+    let goal = { x: 200, y: 10, width: 400, height: 10, color: '#32CD32' };
+    let goalie = { x: 350, y: 20, width: 100, height: 20, direction: 1, speed: 3, color: '#FFD700' };
+    let score = { player1: 0, player2: 0 };
+    let turn = 1; // 1 = Player 1, 2 = Player 2
+    let shooting = false; // Dacă mingea este în mișcare
+    let aiming = true; // Dacă jucătorul poate ținti
+    let isAI = false; // Default: Player vs. Player
+    let isTiebreaker = false; // Indică dacă suntem în lovituri de departajare
+
+    document.getElementById('playAI').onclick = () => {
+        isAI = true;
+        resetGame();
+        update();
+    };
+
+    document.getElementById('playMultiplayer').onclick = () => {
+        isAI = false;
+        resetGame();
+        update();
+    };
+
+    function drawBall() {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fillStyle = ball.color;
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    function drawGoal() {
+        ctx.fillStyle = goal.color;
+        ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+    }
+
+    function drawGoalie() {
+        ctx.fillStyle = goalie.color;
+        ctx.fillRect(goalie.x, goalie.y, goalie.width, goalie.height);
+    }
+
+    function drawArrow() {
+        if (aiming) {
+            ctx.beginPath();
+            ctx.moveTo(ball.x, ball.y);
+            ctx.lineTo(ball.targetX, ball.targetY);
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGoal();
+        drawGoalie();
+        drawBall();
+        if (!shooting) drawArrow();
+        document.getElementById('scoreBoard').textContent = `Player 1: ${score.player1} | ${isAI ? 'AI' : 'Player 2'}: ${score.player2}`;
+    }
+
+    function update() {
+        if (shooting) {
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            if (ball.y < 50) {
+                if (ball.x < goal.x || ball.x > goal.x + goal.width) {
+                    alert(turn === 1 ? 'Player 1 Missed!' : (isAI ? 'AI Missed!' : 'Player 2 Missed!'));
+                } else if (ball.x > goalie.x && ball.x < goalie.x + goalie.width) {
+                    alert(turn === 1 ? 'Player 1 Shot Saved!' : (isAI ? 'AI Shot Saved!' : 'Player 2 Shot Saved!'));
+                } else {
+                    if (turn === 1) {
+                        score.player1++;
+                        alert('Player 1 Scored!');
+                    } else {
+                        score.player2++;
+                        alert(isAI ? 'AI Scored!' : 'Player 2 Scored!');
+                    }
+                }
+                checkWinner();
+                toggleTurn();
+                resetBall();
+            }
+        }
+
+        goalie.x += goalie.direction * goalie.speed;
+        if (goalie.x <= 200 || goalie.x + goalie.width >= 600) goalie.direction *= -1;
+
+        draw();
+        requestAnimationFrame(update);
+    }
+
+    function resetBall() {
+        ball.x = 400;
+        ball.y = 450;
+        ball.dx = 0;
+        ball.dy = 0;
+        shooting = false;
+        aiming = true;
+    }
+
+    function toggleTurn() {
+        turn = turn === 1 ? 2 : 1;
+        if (isAI && turn === 2) {
+            aiShoot();
+        }
+    }
+
+    function aiShoot() {
+        setTimeout(() => {
+            ball.targetX = Math.random() * 400 + 200;
+            shooting = true;
+            aiming = false;
+            ball.dx = (ball.targetX - ball.x) / 50;
+            ball.dy = (ball.targetY - ball.y) / 50;
+        }, 1000);
+    }
+
+    function resetGame() {
+        score.player1 = 0;
+        score.player2 = 0;
+        turn = 1;
+        isTiebreaker = false;
+        resetBall();
+    }
+
+    function checkWinner() {
+        if (!isTiebreaker && score.player1 === 5 && score.player2 === 5) {
+            isTiebreaker = true;
+            alert('Entering Tiebreaker!');
+            return;
+        }
+
+        if (isTiebreaker) {
+            if (score.player1 > score.player2) {
+                showWinner('Player 1 Wins!');
+            } else if (score.player2 > score.player1) {
+                showWinner(isAI ? 'AI Wins!' : 'Player 2 Wins!');
+            }
+        } else if (score.player1 === 5 || score.player2 === 5) {
+            if (score.player1 > score.player2) {
+                showWinner('Player 1 Wins!');
+            } else if (score.player2 > score.player1) {
+                showWinner(isAI ? 'AI Wins!' : 'Player 2 Wins!');
+            }
+        }
+    }
+
+    function showWinner(message) {
+        const winnerOverlay = document.createElement('div');
+        winnerOverlay.style.position = 'fixed';
+        winnerOverlay.style.top = '0';
+        winnerOverlay.style.left = '0';
+        winnerOverlay.style.width = '100%';
+        winnerOverlay.style.height = '100%';
+        winnerOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        winnerOverlay.style.color = 'white';
+        winnerOverlay.style.display = 'flex';
+        winnerOverlay.style.alignItems = 'center';
+        winnerOverlay.style.justifyContent = 'center';
+        winnerOverlay.style.fontSize = '3rem';
+        winnerOverlay.style.zIndex = '1000';
+        winnerOverlay.innerHTML = `<div>${message}</div>`;
+        document.body.appendChild(winnerOverlay);
+
+        setTimeout(() => {
+            winnerOverlay.remove();
+            resetGame();
+        }, 3000);
+    }
+
+    canvas.addEventListener('click', () => {
+        if (aiming && !shooting) {
+            shooting = true;
+            aiming = false;
+            ball.dx = (ball.targetX - ball.x) / 50;
+            ball.dy = (ball.targetY - ball.y) / 50;
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (aiming && !shooting) {
+            ball.targetX = e.offsetX;
+        }
+    });
+
+    resetGame();
+    update();
+
+    // Obține username-ul din sesiune prin endpoint-ul '/auth/get-username'
+    fetch('/auth/get-username', {
+        method: 'GET',
+        credentials: 'include' // Include cookie-urile pentru sesiune
+    })
+        .then((response) => response.text())
+        .then((username) => {
+            if (!username) {
+                username = 'Anonim';
+            }
+            console.log('Username fetched from session:', username); // Debugging
+            document.getElementById('username-display').textContent = username;
+
+            // Inițializează WebSocket-ul cu username-ul
+            const socket = new WebSocket(`ws://localhost:8080/chat?username=${encodeURIComponent(username)}`);
+
+            socket.onopen = () => {
+                console.log('WebSocket Connected as:', username);
+            };
+
+            socket.onmessage = (event) => {
+                const chatBox = document.getElementById('chat-box');
+                const messageElement = document.createElement('div');
+                messageElement.textContent = event.data; // Mesaj primit
+                chatBox.appendChild(messageElement);
+                chatBox.scrollTop = chatBox.scrollHeight; // Scroll automat
+            };
+
+            document.getElementById('send-btn').addEventListener('click', () => {
+                const messageInput = document.getElementById('message-input');
+                const message = messageInput.value.trim();
+                if (message) {
+                    socket.send(message);
+                    messageInput.value = '';
+                }
+            });
+
+            socket.onerror = (error) => {
+                console.error('WebSocket Error:', error);
+            };
+
+            socket.onclose = () => {
+                console.warn('WebSocket Disconnected');
+            };
+        })
+        .catch((error) => {
+            console.error('Failed to fetch username:', error);
+        });
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        fetch('/auth/logout', {
+            method: 'POST',
+            credentials: 'include' // Include cookie-urile pentru sesiune
+        })
+            .then(() => {
+                window.location.href = '/login.html';
+            })
+            .catch((error) => {
+                console.error('Logout failed:', error);
+                alert('An error occurred during logout.');
+            });
+    });
+
+</script>
+
+</body>
+</html>
